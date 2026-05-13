@@ -180,6 +180,17 @@ class DroneDataModule(pl.LightningDataModule):
         self.val_dataset = DroneAudioDataset(val_paths, val_labels, transform=transform)
         self.test_dataset = DroneAudioDataset(test_paths, test_labels, transform=transform)
 
+        labels = torch.tensor(self.train_labels)
+        class_counts = torch.bincount(labels)  # [count_0, count_1]
+        class_weights = 1. / class_counts.float()
+        sample_weights = class_weights[labels]
+
+        self.train_sampler = torch.utils.data.WeightedRandomSampler(
+            weights=sample_weights,
+            num_samples=len(sample_weights),
+            replacement=True
+        )
+
         print("=" * 60)
         print("Dataset root:", self.root_dir)
         print("Selected data dir:", self.data_dir)
@@ -195,7 +206,7 @@ class DroneDataModule(pl.LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            sampler=self.train_sampler,
             num_workers=self.num_workers
         )
 

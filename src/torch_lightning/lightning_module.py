@@ -17,7 +17,14 @@ class DroneClassifier(pl.LightningModule):
             ch_in=1,
         )
 
-        self.loss_fn = nn.CrossEntropyLoss()
+        if num_classes == 2:
+            weights = torch.tensor([1.0, 8.0])
+        else:
+            weights = torch.tensor([15.0, 15.0, 1.0])
+
+        self.register_buffer("class_weights", weights)
+
+        self.loss_fn = nn.CrossEntropyLoss(weight=weights)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
         self.val_acc = Accuracy(task="multiclass", num_classes=num_classes)
