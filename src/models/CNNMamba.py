@@ -59,20 +59,15 @@ class DroneDetectorMamba(nn.Module):
         self.num_classes = num_classes
         self.n_mels = n_mels
 
-        # CNN backbone
         self.conv1 = ConvBlock(ch_in, 32, kernel_size=3, padding=1)
         self.conv2 = ConvBlock(32, 64, kernel_size=3, padding=1)
         self.conv3 = ConvBlock(64, 128, kernel_size=3, padding=1)
         self.conv4 = ConvBlock(128, 256, kernel_size=3, padding=1)
 
-        # po 4 poolingach: n_mels -> n_mels // 16
         self.mel_features = n_mels // 16
 
-        # CNN daje: (B, 256, n_mels//16, time//16)
-        # po zamianie na sekwencję: feature_dim = 256 * (n_mels//16)
         self.cnn_feature_dim = 256 * self.mel_features
 
-        # projekcja do mniejszego wymiaru dla Mamby
         self.proj = nn.Linear(self.cnn_feature_dim, mamba_d_model)
         self.input_dropout = nn.Dropout(dropout_rate)
 
@@ -120,17 +115,14 @@ class DroneDetectorMamba(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, 1, n_mels, time)
 
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
         x = self.conv4(x)
-        # x: (B, 256, n_mels//16, time//16)
 
         b, c, mel, t = x.shape
 
-        # (B, C, mel, T) -> (B, T, C, mel) -> (B, T, C*mel)
         x = x.permute(0, 3, 1, 2).contiguous().view(b, t, c * mel)
 
         x = self.proj(x)

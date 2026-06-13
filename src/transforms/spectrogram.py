@@ -14,7 +14,7 @@ class MelSpectrogramTransform:
         f_min=0.0,
         f_max=None,
         power=2.0,
-        variant="original",  # "original", "noisy", "noisy_kalman", "kalman"
+        variant="original",  # "original", "noisy", "noisy_kalman"
         noise_std=0.01,
         kalman_q=1e-5,
         kalman_r=1e-3,
@@ -77,17 +77,7 @@ class MelSpectrogramTransform:
         return noisy.astype(np.float32)
 
     def kalman_filter_1d(self, waveform):
-        """
-        Prosty skalarowy filtr Kalmana działający bezpośrednio na waveformie audio.
 
-        Model:
-            x_k = x_{k-1} + w_k
-            z_k = x_k + v_k
-
-        gdzie:
-            Q = kalman_q -> wariancja szumu procesu
-            R = kalman_r -> wariancja szumu pomiaru
-        """
         waveform = waveform.astype(np.float32)
         filtered = np.zeros_like(waveform, dtype=np.float32)
 
@@ -102,11 +92,9 @@ class MelSpectrogramTransform:
         for k in range(len(waveform)):
             z = float(waveform[k])
 
-            # 1. Predykcja: zakładamy, że kolejna próbka jest podobna do poprzedniego stanu.
             x_pred = x_est
             p_pred = p + q
 
-            # 2. Korekcja: łączymy predykcję z aktualnym pomiarem.
             k_gain = p_pred / (p_pred + r)
             x_est = x_pred + k_gain * (z - x_pred)
             p = (1.0 - k_gain) * p_pred
@@ -116,10 +104,6 @@ class MelSpectrogramTransform:
         return filtered.astype(np.float32)
 
     def apply_variant(self, waveform):
-        """
-        Wszystkie warianty działają teraz przed mel-spektrogramem, czyli na waveformie.
-        Nie ma już filtrowania Kalmana na mel_db.
-        """
         waveform = waveform.astype(np.float32)
 
         if self.variant == "original":
@@ -139,16 +123,12 @@ class MelSpectrogramTransform:
         return waveform
 
     def __call__(self, waveform, sr):
-        # 1. Preprocessing waveformu
         waveform = self.to_mono(waveform)
         waveform, sr = self.resample_if_needed(waveform, sr)
         waveform = self.pad_or_trim(waveform)
 
-        # 2. Wariant eksperymentu: original/noisy/kalman/noisy_kalman
-        #    Kalman działa tutaj na waveformie, przed obliczeniem mel-spektrogramu.
         waveform = self.apply_variant(waveform)
 
-        # 3. Mel-spektrogram liczony już z gotowego waveformu.
         mel = librosa.feature.melspectrogram(
             y=waveform,
             sr=sr,
@@ -162,7 +142,6 @@ class MelSpectrogramTransform:
 
         mel_db = librosa.power_to_db(mel, ref=np.max)
 
-        # 4. Normalizacja mel-spektrogramu do zakresu [0, 1]
         mel_min = mel_db.min()
         mel_max = mel_db.max()
         mel_norm = (mel_db - mel_min) / (mel_max - mel_min + 1e-8)

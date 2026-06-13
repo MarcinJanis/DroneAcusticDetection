@@ -4,7 +4,6 @@ import zipfile
 from dataclasses import dataclass
 
 
-# repo jest na branchu "master", więc bierzemy zip z master
 DRONE_AUDIO_ZIP_URL = "https://codeload.github.com/saraalemadi/DroneAudioDataset/zip/refs/heads/master"
 
 

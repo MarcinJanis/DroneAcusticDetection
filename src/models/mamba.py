@@ -28,10 +28,8 @@ class MambaLite(nn.Module):
 
         self.norm = nn.LayerNorm(d_model)
 
-        # 3 gałęzie: u, v, g
         self.in_proj = nn.Linear(d_model, inner * 3, bias=True)
 
-        # depthwise conv po wymiarze sekwencji
         self.conv = nn.Conv1d(
             in_channels=inner,
             out_channels=inner,
@@ -41,7 +39,6 @@ class MambaLite(nn.Module):
             bias=True,
         )
 
-        # parametry części "state space"
         self.A_log = nn.Parameter(torch.randn(inner, d_state) * 0.02)
         self.B = nn.Parameter(torch.randn(inner, d_state) * 0.02)
         self.C = nn.Parameter(torch.randn(inner, d_state) * 0.02)
@@ -59,16 +56,15 @@ class MambaLite(nn.Module):
 
         x = self.norm(x)
 
-        uvg = self.in_proj(x)  # (B, L, 3*inner)
-        u, v, g = uvg.chunk(3, dim=-1)  # każde: (B, L, inner)
+        uvg = self.in_proj(x)  
+        u, v, g = uvg.chunk(3, dim=-1)  
 
-        # depthwise conv po osi sekwencji
-        u = self.conv(u.transpose(1, 2)).transpose(1, 2)  # (B, L, inner)
+        u = self.conv(u.transpose(1, 2)).transpose(1, 2)  
         u = F.silu(u)
 
         # stabilna wersja A
-        A = -torch.exp(self.A_log)      # (inner, d_state)
-        eA = torch.exp(A)               # (inner, d_state)
+        A = -torch.exp(self.A_log)      
+        eA = torch.exp(A)               
 
         # stan ukryty
         s = torch.zeros(
@@ -79,19 +75,19 @@ class MambaLite(nn.Module):
 
         ys = []
         for t in range(L):
-            ut = u[:, t, :]  # (B, inner)
+            ut = u[:, t, :]  
 
             s = s * eA.unsqueeze(0) + ut.unsqueeze(-1) * self.B.unsqueeze(0)
             yt = (s * self.C.unsqueeze(0)).sum(dim=-1) + ut * self.D.unsqueeze(0)
 
             ys.append(yt)
 
-        y = torch.stack(ys, dim=1)  # (B, L, inner)
+        y = torch.stack(ys, dim=1)  
 
         # gating
         y = y * torch.sigmoid(g) + F.silu(v)
 
-        y = self.out_proj(y)  # (B, L, D)
+        y = self.out_proj(y)  
         y = self.dropout(y)
 
         return residual + y
